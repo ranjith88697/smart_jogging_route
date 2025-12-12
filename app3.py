@@ -549,14 +549,14 @@ def display_results():
         st.plotly_chart(st.session_state.map_data, use_container_width=True)
     
     
-    st.markdown("### 🗺️ Still working on Heat Maps of Polluted areas")
-    try:
-        pydeck_map = create_alternative_map_with_pydeck(data['coords'], data['aqi_data'], 
-                                                       generate_pollution_heatmap_data(data['coords']['lat'], data['coords']['lng']), 
-                                                       data['routes'])
-        st.pydeck_chart(pydeck_map)
-    except ImportError:
-        st.info("PyDeck not available. Install with: pip install pydeck")
+    #st.markdown("### 🗺️ Still working on Heat Maps of Polluted areas")
+    #try:
+     #   pydeck_map = create_alternative_map_with_pydeck(data['coords'], data['aqi_data'], 
+      #                                                 generate_pollution_heatmap_data(data['coords']['lat'], data['coords']['lng']), 
+       #                                                data['routes'])
+       # st.pydeck_chart(pydeck_map)
+    #except ImportError:
+     #   st.info("PyDeck not available. Install with: pip install pydeck")
     
     # Route analysis
     st.markdown("### 📊 Route Analysis")
