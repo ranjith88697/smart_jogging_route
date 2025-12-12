@@ -11,7 +11,6 @@ from folium import Choropleth
 import branca.colormap as cm
 import requests
 import streamlit as st # Import streamlit for st.warning and st.cache_data
-from google.colab import userdata
 #api_key = userdata.get('GOOGLE_API_KEY') # Get the API key from userdata
 api_key = "AIzaSyAX3v9OSj4Fg3Ad649BIRR13B09CidYNqc"
 address = "Riga, Latvia"
