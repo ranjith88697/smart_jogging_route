@@ -150,6 +150,40 @@ def get_air_quality_data(lat, lng):
     }
 
 
+@st.cache_data(ttl=600) 
+def generate_pollution_heatmap_data(center_lat, center_lng, radius_km=5):
+    """Generate grid points for pollution heatmap"""
+    points = []
+    grid_size = 20  
+    
+    # Calculate bounds
+    lat_range = radius_km / 111.0  # Approximate km to degrees
+    lng_range = radius_km / (111.0 * np.cos(np.radians(center_lat)))
+    
+    for i in range(grid_size):
+        for j in range(grid_size):
+            lat = center_lat + (i - grid_size/2) * lat_range / (grid_size/2)
+            lng = center_lng + (j - grid_size/2) * lng_range / (grid_size/2)
+            
+            # Simulate AQI based on distance from center and some randomness
+            distance = geodesic((center_lat, center_lng), (lat, lng)).kilometers
+            
+            # More realistic pollution simulation
+            base_pollution = 60  
+            distance_factor = max(0, distance * 8) 
+            random_factor = np.random.normal(0, 15)  
+            
+            simulated_aqi = max(30, min(250, base_pollution + distance_factor + random_factor))
+            
+            points.append({
+                'lat': lat,
+                'lng': lng,
+                'aqi': simulated_aqi,
+                'weight': min(1.0, simulated_aqi / 200.0)  
+            })
+    
+    return points
+
 def create_plotly_map(center_coords, aqi_data, heatmap_data, routes):
     """Create an interactive Plotly map with pollution heatmap and routes"""
     lat, lng = center_coords['lat'], center_coords['lng']
@@ -438,6 +472,9 @@ def process_route_generation(location, distance, fitness_level, health_condition
             status.update(label="Getting timezone data...", state="running")
             timezone = get_timezone(coords['lat'], coords['lng'])
             
+            status.update(label="Generating pollution heatmap...", state="running")
+            heatmap_data = generate_pollution_heatmap_data(coords['lat'], coords['lng'])
+            
             status.update(label="Optimizing routes...", state="running")
             routes = generate_optimized_routes(coords, heatmap_data)
             
@@ -511,6 +548,16 @@ def display_results():
     if st.session_state.map_data:
         st.plotly_chart(st.session_state.map_data, use_container_width=True)
     
+    
+    st.markdown("### 🗺️ Still working on Heat Maps of Polluted areas")
+    try:
+        pydeck_map = create_alternative_map_with_pydeck(data['coords'], data['aqi_data'], 
+                                                       generate_pollution_heatmap_data(data['coords']['lat'], data['coords']['lng']), 
+                                                       data['routes'])
+        st.pydeck_chart(pydeck_map)
+    except ImportError:
+        st.info("PyDeck not available. Install with: pip install pydeck")
+    
     # Route analysis
     st.markdown("### 📊 Route Analysis")
     for i, route in enumerate(data['routes']):
@@ -572,7 +619,7 @@ def main():
 
     with st.sidebar:
         st.header("🎯 Route Preferences")
-        location = st.text_input("📍 Starting Location", "Riga, Latvia", key="location_input")
+        location = st.text_input("📍 Starting Location", "Times Square, New York", key="location_input")
         distance = st.slider("🏁 Target Distance (km)", 1.0, 15.0, 5.0, 0.5, key="distance_slider")
         fitness_level = st.selectbox("💪 Fitness Level", ["Beginner", "Intermediate", "Advanced"], key="fitness_select")
         health_conditions = st.multiselect("🏥 Health Considerations", 
