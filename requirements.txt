@@ -1,0 +1,9 @@
+streamlit
+osmnx
+networkx
+geopandas
+scikit-learn
+pandas
+matplotlib
+python-dotenv
+streamlit-folium
