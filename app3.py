@@ -472,8 +472,8 @@ def process_route_generation(location, distance, fitness_level, health_condition
             status.update(label="Getting timezone data...", state="running")
             timezone = get_timezone(coords['lat'], coords['lng'])
             
-            status.update(label="Generating pollution heatmap...", state="running")
-            heatmap_data = generate_pollution_heatmap_data(coords['lat'], coords['lng'])
+            #status.update(label="Generating pollution heatmap...", state="running")
+            #heatmap_data = generate_pollution_heatmap_data(coords['lat'], coords['lng'])
             
             status.update(label="Optimizing routes...", state="running")
             routes = generate_optimized_routes(coords, heatmap_data)
@@ -619,7 +619,7 @@ def main():
 
     with st.sidebar:
         st.header("🎯 Route Preferences")
-        location = st.text_input("📍 Starting Location", "Times Square, New York", key="location_input")
+        location = st.text_input("📍 Starting Location", "Riga, Latvia", key="location_input")
         distance = st.slider("🏁 Target Distance (km)", 1.0, 15.0, 5.0, 0.5, key="distance_slider")
         fitness_level = st.selectbox("💪 Fitness Level", ["Beginner", "Intermediate", "Advanced"], key="fitness_select")
         health_conditions = st.multiselect("🏥 Health Considerations", 
