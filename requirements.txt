@@ -7,3 +7,4 @@ pandas
 matplotlib
 python-dotenv
 streamlit-folium
+plotly>=5.0
