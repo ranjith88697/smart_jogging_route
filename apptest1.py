@@ -197,34 +197,33 @@ def score_jogging_paths(place_name="Riga, Latvia"):
 def generate_ml_optimized_routes(place_name, center_coords, heatmap_data, max_routes=3):
     G, jogging_edges = score_jogging_paths(place_name)
 
-    # Convert graph to NetworkX
-    G_nx = ox.utils_graph.get_undirected(G)
+    # Convert OSMnx graph to undirected NetworkX graph (osmnx-safe)
+    G_nx = nx.Graph(G)
 
     center_node = ox.distance.nearest_nodes(
         G_nx, center_coords['lng'], center_coords['lat']
     )
 
     routes = []
-    sampled_edges = jogging_edges.sample(n=min(20, len(jogging_edges)))
+    sampled_edges = jogging_edges.sample(n=min(20, len(jogging_edges)), random_state=42)
 
-    for i, edge in sampled_edges.iterrows():
+    for _, edge in sampled_edges.iterrows():
         try:
             path = nx.shortest_path(
-                G_nx, center_node, edge['u'], weight='length'
+                G_nx,
+                center_node,
+                edge['u'],
+                weight='length'
             )
 
-            coords = [
-                (G_nx.nodes[n]['y'], G_nx.nodes[n]['x']) for n in path
-            ]
+            coords = [(G_nx.nodes[n]['y'], G_nx.nodes[n]['x']) for n in path]
 
-            distance = edge['length'] / 1000
-            avg_aqi = np.mean([
-                p['aqi'] for p in heatmap_data[:10]
-            ])
+            distance_km = edge['length'] / 1000
+            avg_aqi = np.mean([p['aqi'] for p in heatmap_data[:10]])
 
             routes.append({
                 'coordinates': coords,
-                'distance': distance,
+                'distance': distance_km,
                 'avg_aqi': avg_aqi,
                 'predicted_score': edge['predicted_score'],
                 'route_id': len(routes) + 1
@@ -236,7 +235,11 @@ def generate_ml_optimized_routes(place_name, center_coords, heatmap_data, max_ro
         except Exception:
             continue
 
-    return sorted(routes, key=lambda x: (-x['predicted_score'], x['avg_aqi']))
+    return sorted(
+        routes,
+        key=lambda x: (-x['predicted_score'], x['avg_aqi'])
+    )
+
 
 
 @st.cache_data(ttl=600) 
