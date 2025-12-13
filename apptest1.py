@@ -577,8 +577,9 @@ def process_route_generation(location, distance, fitness_level, health_condition
             heatmap_data = generate_pollution_heatmap_data(coords['lat'], coords['lng'])
             
             status.update(label="Optimizing routes...", state="running")
-            routes = generate_ml_optimized_routes(location, coords, heatmap_data)
+            #routes = generate_ml_optimized_routes(location, coords, heatmap_data)
             #routes = generate_optimized_routes(coords, heatmap_data)
+            routes = generate_ml_optimized_routes(coords, heatmap_data)
             
             status.update(label="Creating interactive map...", state="running")
             map_obj = create_plotly_map(coords, aqi_data, heatmap_data, routes)
