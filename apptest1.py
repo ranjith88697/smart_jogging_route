@@ -245,6 +245,95 @@ def generate_ml_optimized_routes(center_coords, heatmap_data, max_routes=3):
         key=lambda x: (-x['predicted_score'], x['avg_aqi'])
     )
 
+def generate_loop_routes(
+    center_coords,
+    target_distance_km,
+    heatmap_data,
+    max_routes=3,
+    tolerance=0.15  # ±15%
+):
+    """
+    Generate jogging-friendly loop routes matching target distance
+    """
+
+    # Build OSM graph & ML scores
+    G, jogging_edges = score_jogging_paths_by_coords(
+        center_coords['lat'],
+        center_coords['lng'],
+        dist_m=int(target_distance_km * 1000 * 1.2)
+    )
+
+    G_nx = nx.Graph(G)
+
+    start_node = ox.distance.nearest_nodes(
+        G_nx,
+        center_coords['lng'],
+        center_coords['lat']
+    )
+
+    routes = []
+
+    # Candidate loop distances
+    min_dist = target_distance_km * (1 - tolerance)
+    max_dist = target_distance_km * (1 + tolerance)
+
+    # Pick candidate mid-nodes
+    candidate_nodes = list(G_nx.nodes)
+    np.random.shuffle(candidate_nodes)
+
+    for mid_node in candidate_nodes[:100]:
+        try:
+            path_out = nx.shortest_path(
+                G_nx, start_node, mid_node, weight='length'
+            )
+            path_back = nx.shortest_path(
+                G_nx, mid_node, start_node, weight='length'
+            )
+
+            loop_path = path_out + path_back[1:]
+
+            # Distance calculation
+            total_length_m = sum(
+                ox.utils_graph.get_route_edge_attributes(G, loop_path, 'length')
+            )
+            total_km = total_length_m / 1000
+
+            if not (min_dist <= total_km <= max_dist):
+                continue
+
+            coords = [(G_nx.nodes[n]['y'], G_nx.nodes[n]['x']) for n in loop_path]
+
+            # AQI estimate
+            avg_aqi = np.mean([p['aqi'] for p in heatmap_data[:10]])
+
+            # ML score estimate (average of nearby edges)
+            nearby_edges = jogging_edges.sample(
+                n=min(5, len(jogging_edges)),
+                random_state=42
+            )
+            predicted_score = nearby_edges['predicted_score'].mean()
+
+            routes.append({
+                'coordinates': coords,
+                'distance': total_km,
+                'avg_aqi': avg_aqi,
+                'predicted_score': predicted_score,
+                'route_id': len(routes) + 1,
+                'loop': True
+            })
+
+            if len(routes) >= max_routes:
+                break
+
+        except Exception:
+            continue
+
+    return sorted(
+        routes,
+        key=lambda x: (-x['predicted_score'], x['avg_aqi'])
+    )
+
+
 @st.cache_data(ttl=600) 
 def generate_pollution_heatmap_data(center_lat, center_lng, radius_km=5):
     """Generate grid points for pollution heatmap"""
@@ -577,7 +666,12 @@ def process_route_generation(location, distance, fitness_level, health_condition
             status.update(label="Optimizing routes...", state="running")
             #routes = generate_ml_optimized_routes(location, coords, heatmap_data)
             #routes = generate_optimized_routes(coords, heatmap_data)
-            routes = generate_ml_optimized_routes(coords, heatmap_data)
+            #routes = generate_ml_optimized_routes(coords, heatmap_data)
+            routes = generate_loop_routes(
+                        center_coords=coords,
+                        target_distance_km=distance,
+                        heatmap_data=heatmap_data
+                        )
             
             status.update(label="Creating interactive map...", state="running")
             map_obj = create_plotly_map(coords, aqi_data, heatmap_data, routes)
