@@ -252,11 +252,14 @@ def generate_loop_routes(
     max_routes=3,
     tolerance=0.25
 ):
-    """Generate jogger-friendly loop routes, with fallback if no loops found."""
+    """
+    Generate jogging loop routes around a center coordinate.
+    Guarantees at least one route is returned.
+    """
     G, jogging_edges = score_jogging_paths_by_coords(
         center_coords['lat'],
         center_coords['lng'],
-        dist_m=int(target_distance_km * 1000 * 2.0)
+        dist_m=max(int(target_distance_km * 1000 * 2.0), 3000)  # Ensure minimum graph size
     )
 
     G_nx = nx.Graph(G)
@@ -274,19 +277,19 @@ def generate_loop_routes(
     candidate_nodes = list(G_nx.nodes)
     np.random.shuffle(candidate_nodes)
 
-    # --- Try generating normal loops ---
+    # Try generating loop routes via mid-nodes
     for mid_node in candidate_nodes[:300]:
         try:
             path_out = nx.shortest_path(G_nx, start_node, mid_node, weight='length')
             path_back = nx.shortest_path(G_nx, mid_node, start_node, weight='length')
             loop_path = path_out + path_back[1:]
 
-            # Calculate total distance
-            total_length_m = sum(
-                list(G_nx.get_edge_data(u, v).values())[0].get('length', 0)
-                for u, v in zip(loop_path[:-1], loop_path[1:])
-                if G_nx.has_edge(u, v)
-            )
+            total_length_m = 0
+            for u, v in zip(loop_path[:-1], loop_path[1:]):
+                if G_nx.has_edge(u, v):
+                    edge = list(G_nx.get_edge_data(u, v).values())[0]
+                    total_length_m += edge.get('length', 0)
+
             total_km = total_length_m / 1000
             if not (min_dist <= total_km <= max_dist):
                 continue
@@ -313,43 +316,45 @@ def generate_loop_routes(
         except Exception:
             continue
 
-    # --- Fallback: generate simple out-and-back route if no loops found ---
+    # Fallback: simple out-and-back route if no loops were generated
     if not routes:
-        try:
-            # Pick a nearby node along a short path
-            for candidate in candidate_nodes[:50]:
-                path = nx.shortest_path(G_nx, start_node, candidate, weight='length')
-                # Duplicate path to make out-and-back
-                loop_path = path + path[::-1][1:]
+        fallback_distance_m = target_distance_km * 1000 / 2  # half out, half back
+        path_length = 0
+        loop_path = [start_node]
+        current_node = start_node
 
-                total_length_m = sum(
-                    list(G_nx.get_edge_data(u, v).values())[0].get('length', 0)
-                    for u, v in zip(loop_path[:-1], loop_path[1:])
-                    if G_nx.has_edge(u, v)
-                )
-                total_km = total_length_m / 1000
+        # Walk along neighbors until we reach half of target distance
+        while path_length < fallback_distance_m:
+            neighbors = list(G_nx.neighbors(current_node))
+            if not neighbors:
+                break
+            next_node = np.random.choice(neighbors)
+            edge_data = list(G_nx.get_edge_data(current_node, next_node).values())[0]
+            loop_path.append(next_node)
+            path_length += edge_data.get('length', 0)
+            current_node = next_node
 
-                # Adjust length by trimming/adding nodes if necessary
-                if total_km > 0:
-                    coords = [(G_nx.nodes[n]['y'], G_nx.nodes[n]['x']) for n in loop_path]
-                    avg_aqi = np.mean([p['aqi'] for p in heatmap_data[:10]])
-                    predicted_score = jogging_edges['predicted_score'].sample(
-                        n=min(5, len(jogging_edges))
-                    ).mean()
+        # Return along the same path
+        loop_path = loop_path + loop_path[::-1][1:]
 
-                    routes.append({
-                        'coordinates': coords,
-                        'distance': total_km,
-                        'avg_aqi': avg_aqi,
-                        'predicted_score': predicted_score,
-                        'route_id': 1,
-                        'loop': True
-                    })
-                    break
-        except Exception:
-            pass
+        coords = [(G_nx.nodes[n]['y'], G_nx.nodes[n]['x']) for n in loop_path]
+        avg_aqi = np.mean([p['aqi'] for p in heatmap_data[:10]])
+        predicted_score = jogging_edges['predicted_score'].sample(
+            n=min(5, len(jogging_edges))
+        ).mean()
 
+        routes.append({
+            'coordinates': coords,
+            'distance': path_length*2/1000,  # total km
+            'avg_aqi': avg_aqi,
+            'predicted_score': predicted_score,
+            'route_id': 1,
+            'loop': True
+        })
+
+    # Sort routes by score and AQI
     return sorted(routes, key=lambda x: (-x['predicted_score'], x['avg_aqi']))
+
 
 
 @st.cache_data(ttl=600) 
