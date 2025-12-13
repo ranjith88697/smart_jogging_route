@@ -53,13 +53,18 @@ def get_air_quality_data(lat, lng, api_key):
 
 def score_jogging_paths(place_name="Riga, Latvia"):
     """Download walkable network, filter jogging paths, and score them"""
+    # Build graph
     G = ox.graph_from_place(place_name, network_type='walk')
     nodes, edges = ox.graph_to_gdfs(G)
+
+    # Reset index so u, v, key become columns
+    edges = edges.reset_index()
 
     # Ensure 'surface' column exists
     if 'surface' not in edges.columns:
         edges['surface'] = None
 
+    # Filter jogging-friendly paths
     jogging_edges = edges[edges['highway'].isin(['footway', 'path', 'cycleway'])].copy()
     jogging_edges['length'] = jogging_edges['length'].fillna(0)
     jogging_edges['surface'] = jogging_edges['surface'].fillna('unknown')
@@ -83,17 +88,17 @@ def score_jogging_paths(place_name="Riga, Latvia"):
 
     return G, jogging_edges
 
+
 def generate_routes(G, jogging_edges, start_lat, start_lng, num_routes=3):
     """Generate jogging routes using osmnx shortest paths and scored edges"""
     routes = []
     start_node = ox.distance.nearest_nodes(G, start_lng, start_lat)
-    nodes = list(G.nodes)
 
     # Sort edges by predicted score (best first)
     top_edges = jogging_edges.sort_values("predicted_score", ascending=False).head(num_routes)
 
     for i, edge in top_edges.iterrows():
-        u, v = edge["u"], edge["v"]
+        u, v = edge["u"], edge["v"]   # now works because we reset_index()
         try:
             path = nx.shortest_path(G, start_node, v, weight="length")
             coords = [(G.nodes[n]["y"], G.nodes[n]["x"]) for n in path]
@@ -107,6 +112,7 @@ def generate_routes(G, jogging_edges, start_lat, start_lng, num_routes=3):
         except Exception:
             continue
     return routes
+
 
 def create_map(lat, lng, routes, aqi_data):
     """Create a Plotly map with routes and AQI info"""
