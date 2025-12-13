@@ -735,20 +735,33 @@ def display_results():
      #   st.info("PyDeck not available. Install with: pip install pydeck")
     
     # Route analysis
-    st.markdown("### 📊 Route Analysis")
-    for i, route in enumerate(data['routes']):
-        with st.expander(f"Route {i+1}: {route['distance']:.1f}km (Avg AQI: {route['avg_aqi']:.0f})"):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write(f"**Distance:** {route['distance']:.1f} km")
-                st.write(f"**Estimated Time:** {route['distance'] * 6:.0f} minutes")
-                st.write(f"**Average AQI:** {route['avg_aqi']:.0f}")
-                st.write(f"**Jogging Score:** {route['predicted_score']:.1f}")
-            with col2:
-                quality = "Excellent" if route['avg_aqi'] < 50 else "Good" if route['avg_aqi'] < 100 else "Moderate"
-                st.write(f"**Air Quality:** {quality}")
-                st.write(f"**Calories (est.):** {route['distance'] * 65:.0f}")
-                st.write(f"**Difficulty:** {data['fitness_level']}")
+   # Route analysis
+st.markdown("### 📊 Route Analysis")
+
+# ✅ HARD GUARD — REQUIRED
+if not data.get('routes'):
+    st.warning(
+        "⚠️ No jogging loop routes could be generated for the selected distance.\n\n"
+        "Try:\n"
+        "• Increasing the target distance\n"
+        "• Choosing a denser area\n"
+        "• Trying again (routes are stochastic)"
+    )
+    return  # ⬅⬅⬅ THIS LINE PREVENTS THE CRASH
+
+for i, route in enumerate(data['routes']):
+    with st.expander(
+        f"Route {i+1}: {route['distance']:.2f} km "
+        f"(Score: {route['predicted_score']:.1f})"
+    ):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write(f"**Distance:** {route['distance']:.2f} km")
+            st.write(f"**Average AQI:** {route['avg_aqi']:.0f}")
+        with col2:
+            st.write("**Route Type:** Loop 🔁")
+            st.write(f"**Jogging Score:** {route['predicted_score']:.1f}")
+
     
   
     st.markdown("### 📈 Environmental Insights")
@@ -766,13 +779,20 @@ def display_results():
         #st.warning("⚠️ No jogging loops found for the selected distance. Try increasing the distance or tolerance.")
         #return
 
-        best_route = min(data['routes'], key=lambda x: x['avg_aqi'])
-        worst_route = max(data['routes'], key=lambda x: x['avg_aqi'])
+        if data['routes']:
+    best_route = min(data['routes'], key=lambda x: x['avg_aqi'])
+    worst_route = max(data['routes'], key=lambda x: x['avg_aqi'])
 
-        improvement = ((worst_route['avg_aqi'] - best_route['avg_aqi']) / worst_route['avg_aqi'] * 100) if worst_route['avg_aqi'] > 0 else 0
-        st.write(f"• Best route AQI: {best_route['avg_aqi']:.0f}")
-        st.write(f"• Pollution avoidance: {improvement:.0f}%")
-        st.write(f"• Health risk: {'Low' if best_route['avg_aqi'] < 100 else 'Moderate' if best_route['avg_aqi'] < 150 else 'High'}")
+    improvement = (
+        (worst_route['avg_aqi'] - best_route['avg_aqi']) /
+        worst_route['avg_aqi'] * 100
+        if worst_route['avg_aqi'] > 0 else 0
+    )
+
+    st.write(f"• Best route AQI: {best_route['avg_aqi']:.0f}")
+    st.write(f"• Pollution avoidance: {improvement:.0f}%")
+else:
+    st.write("• Pollution avoidance: N/A")
 
 def main():
 
