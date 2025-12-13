@@ -762,9 +762,9 @@ def display_results():
     
     with col2:
         st.markdown("**🎯 Optimization Results**")
-        if not data['routes']:
-        st.warning("⚠️ No jogging loops found for the selected distance. Try increasing the distance or tolerance.")
-        return
+        #if not data['routes']:
+        #st.warning("⚠️ No jogging loops found for the selected distance. Try increasing the distance or tolerance.")
+        #return
 
         best_route = min(data['routes'], key=lambda x: x['avg_aqi'])
         worst_route = max(data['routes'], key=lambda x: x['avg_aqi'])
