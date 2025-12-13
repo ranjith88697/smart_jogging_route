@@ -624,42 +624,30 @@ def get_health_recommendations(aqi_data, user_profile):
 def process_route_generation(location, distance, fitness_level, health_conditions, time_preference):
     """Process route generation and store results in session state"""
     try:
-        
+        # Geocode the user location
         coords = geocode_address(location)
         if not coords:
             st.error("❌ Could not find the specified location. Please try again.")
             return False
+
         st.write("DEBUG coords:", coords, type(coords))
-        # Get environmental data
-        with st.spinner("Fetching environmental data...") as status:
-            status.update(label="Getting air quality data...", state="running")
+
+        # Fetch environmental data and generate routes with a spinner
+        with st.spinner("Fetching environmental data and generating routes..."):
             aqi_data = get_air_quality_data(coords['lat'], coords['lng'])
-            
-            status.update(label="Getting elevation data...", state="running")
             elevation = get_elevation(coords['lat'], coords['lng'])
-            
-            status.update(label="Getting timezone data...", state="running")
             timezone = get_timezone(coords['lat'], coords['lng'])
-            
-            status.update(label="Generating pollution heatmap...", state="running")
             heatmap_data = generate_pollution_heatmap_data(coords['lat'], coords['lng'])
-            
-            status.update(label="Optimizing routes...", state="running")
-            #routes = generate_ml_optimized_routes(location, coords, heatmap_data)
-            #routes = generate_optimized_routes(coords, heatmap_data)
-            #routes = generate_ml_optimized_routes(coords, heatmap_data)
+
             routes = generate_loop_routes(
-                        center_coords=coords,
-                        target_distance_km=distance,
-                        heatmap_data=heatmap_data
-                        )
-            
-            status.update(label="Creating interactive map...", state="running")
+                center_coords=coords,
+                target_distance_km=distance,
+                heatmap_data=heatmap_data
+            )
+
             map_obj = create_plotly_map(coords, aqi_data, heatmap_data, routes)
-            
-            status.update(label="Complete!", state="complete")
-        
-        
+
+        # Store results in session state
         st.session_state.route_data = {
             'coords': coords,
             'aqi_data': aqi_data,
@@ -674,12 +662,13 @@ def process_route_generation(location, distance, fitness_level, health_condition
         }
         st.session_state.map_data = map_obj
         st.session_state.results_generated = True
-        
+
         return True
-        
+
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         return False
+
 
 def display_results():
     """Display the generated results from session state"""
