@@ -250,17 +250,12 @@ def generate_loop_routes(
     target_distance_km,
     heatmap_data,
     max_routes=3,
-    tolerance=0.15  # ±15%
+    tolerance=0.25
 ):
-    """
-    Generate jogging-friendly loop routes matching target distance
-    """
-
-    # Build OSM graph & ML scores
     G, jogging_edges = score_jogging_paths_by_coords(
         center_coords['lat'],
         center_coords['lng'],
-        dist_m=int(target_distance_km * 1000 * 1.2)
+        dist_m=int(target_distance_km * 1000 * 2.0)
     )
 
     G_nx = nx.Graph(G)
@@ -271,47 +266,35 @@ def generate_loop_routes(
         center_coords['lat']
     )
 
-    routes = []
-
-    # Candidate loop distances
     min_dist = target_distance_km * (1 - tolerance)
     max_dist = target_distance_km * (1 + tolerance)
 
-    # Pick candidate mid-nodes
+    routes = []
     candidate_nodes = list(G_nx.nodes)
     np.random.shuffle(candidate_nodes)
 
-    for mid_node in candidate_nodes[:100]:
+    for mid_node in candidate_nodes[:300]:
         try:
-            path_out = nx.shortest_path(
-                G_nx, start_node, mid_node, weight='length'
-            )
-            path_back = nx.shortest_path(
-                G_nx, mid_node, start_node, weight='length'
-            )
-
+            path_out = nx.shortest_path(G_nx, start_node, mid_node, weight='length')
+            path_back = nx.shortest_path(G_nx, mid_node, start_node, weight='length')
             loop_path = path_out + path_back[1:]
 
-            # Distance calculation
-            total_length_m = sum(
-                ox.utils_graph.get_route_edge_attributes(G, loop_path, 'length')
-            )
-            total_km = total_length_m / 1000
+            total_length_m = 0
+            for u, v in zip(loop_path[:-1], loop_path[1:]):
+                if G_nx.has_edge(u, v):
+                    edge = list(G_nx.get_edge_data(u, v).values())[0]
+                    total_length_m += edge.get('length', 0)
 
+            total_km = total_length_m / 1000
             if not (min_dist <= total_km <= max_dist):
                 continue
 
             coords = [(G_nx.nodes[n]['y'], G_nx.nodes[n]['x']) for n in loop_path]
 
-            # AQI estimate
             avg_aqi = np.mean([p['aqi'] for p in heatmap_data[:10]])
-
-            # ML score estimate (average of nearby edges)
-            nearby_edges = jogging_edges.sample(
-                n=min(5, len(jogging_edges)),
-                random_state=42
-            )
-            predicted_score = nearby_edges['predicted_score'].mean()
+            predicted_score = jogging_edges['predicted_score'].sample(
+                n=min(5, len(jogging_edges))
+            ).mean()
 
             routes.append({
                 'coordinates': coords,
@@ -328,10 +311,8 @@ def generate_loop_routes(
         except Exception:
             continue
 
-    return sorted(
-        routes,
-        key=lambda x: (-x['predicted_score'], x['avg_aqi'])
-    )
+    return sorted(routes, key=lambda x: (-x['predicted_score'], x['avg_aqi']))
+
 
 
 @st.cache_data(ttl=600) 
@@ -781,8 +762,13 @@ def display_results():
     
     with col2:
         st.markdown("**🎯 Optimization Results**")
+        if not data['routes']:
+        st.warning("⚠️ No jogging loops found for the selected distance. Try increasing the distance or tolerance.")
+        return
+
         best_route = min(data['routes'], key=lambda x: x['avg_aqi'])
         worst_route = max(data['routes'], key=lambda x: x['avg_aqi'])
+
         improvement = ((worst_route['avg_aqi'] - best_route['avg_aqi']) / worst_route['avg_aqi'] * 100) if worst_route['avg_aqi'] > 0 else 0
         st.write(f"• Best route AQI: {best_route['avg_aqi']:.0f}")
         st.write(f"• Pollution avoidance: {improvement:.0f}%")
