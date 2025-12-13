@@ -193,7 +193,7 @@ def score_jogging_paths_by_coords(lat, lng, dist_m=3000):
 
     return G, jogging_edges
 
-
+st.write("DEBUG coords:", coords, type(coords))
 
 def generate_ml_optimized_routes(center_coords, heatmap_data, max_routes=3):
     G, jogging_edges = score_jogging_paths_by_coords(
