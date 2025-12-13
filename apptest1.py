@@ -193,8 +193,6 @@ def score_jogging_paths_by_coords(lat, lng, dist_m=3000):
 
     return G, jogging_edges
 
-st.write("DEBUG coords:", coords, type(coords))
-
 def generate_ml_optimized_routes(center_coords, heatmap_data, max_routes=3):
     G, jogging_edges = score_jogging_paths_by_coords(
         center_coords['lat'],
@@ -561,7 +559,7 @@ def process_route_generation(location, distance, fitness_level, health_condition
         if not coords:
             st.error("❌ Could not find the specified location. Please try again.")
             return False
-        
+        st.write("DEBUG coords:", coords, type(coords))
         # Get environmental data
         with st.status("Fetching environmental data...") as status:
             status.update(label="Getting air quality data...", state="running")
