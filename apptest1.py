@@ -687,13 +687,24 @@ def display_results():
         return
     
     data = st.session_state.route_data
-    
+
+    # ✅ HARD GUARD — Prevent crash if no routes
+    if not data.get('routes'):
+        st.warning(
+            "⚠️ No jogging loop routes could be generated for the selected distance.\n\n"
+            "Try:\n"
+            "• Increasing the target distance\n"
+            "• Choosing a denser area\n"
+            "• Trying again (routes are stochastic)"
+        )
+        return  # Exit early if no routes
+
     # Display key metrics
     st.markdown("### 📊 Environmental Metrics")
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        aqi_color = "🟢" if data['aqi_data']['aqi'] < 100 else "🟡" if data['aqi_data']['aqi'] < 150 else "🔴"
+        aqi_color = "🟢" if data['aqi_data']['aqi'] <= 50 else "🟡" if data['aqi_data']['aqi'] <= 100 else "🔴"
         st.metric("Air Quality Index", f"{aqi_color} {data['aqi_data']['aqi']}", data['aqi_data']['category'])
     
     with col2:
@@ -724,75 +735,52 @@ def display_results():
     if st.session_state.map_data:
         st.plotly_chart(st.session_state.map_data, use_container_width=True)
     
+    # Route Analysis
+    st.markdown("### 📊 Route Analysis")
+    for i, route in enumerate(data['routes']):
+        with st.expander(
+            f"Route {i+1}: {route['distance']:.2f} km "
+            f"(Score: {route.get('predicted_score', 0):.1f})"
+        ):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Distance:** {route['distance']:.2f} km")
+                st.write(f"**Average AQI:** {route['avg_aqi']:.0f}")
+            with col2:
+                route_type = "Loop 🔁" if route.get('loop', False) else "Point-to-Point"
+                st.write(f"**Route Type:** {route_type}")
+                st.write(f"**Jogging Score:** {route.get('predicted_score', 0):.1f}")
     
-    #st.markdown("### 🗺️ Still working on Heat Maps of Polluted areas")
-    #try:
-     #   pydeck_map = create_alternative_map_with_pydeck(data['coords'], data['aqi_data'], 
-      #                                                 generate_pollution_heatmap_data(data['coords']['lat'], data['coords']['lng']), 
-       #                                                data['routes'])
-       # st.pydeck_chart(pydeck_map)
-    #except ImportError:
-     #   st.info("PyDeck not available. Install with: pip install pydeck")
-    
-    # Route analysis
-   # Route analysis
-st.markdown("### 📊 Route Analysis")
-
-# ✅ HARD GUARD — REQUIRED
-if not data.get('routes'):
-    st.warning(
-        "⚠️ No jogging loop routes could be generated for the selected distance.\n\n"
-        "Try:\n"
-        "• Increasing the target distance\n"
-        "• Choosing a denser area\n"
-        "• Trying again (routes are stochastic)"
-    )
-    return  # ⬅⬅⬅ THIS LINE PREVENTS THE CRASH
-
-for i, route in enumerate(data['routes']):
-    with st.expander(
-        f"Route {i+1}: {route['distance']:.2f} km "
-        f"(Score: {route['predicted_score']:.1f})"
-    ):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write(f"**Distance:** {route['distance']:.2f} km")
-            st.write(f"**Average AQI:** {route['avg_aqi']:.0f}")
-        with col2:
-            st.write("**Route Type:** Loop 🔁")
-            st.write(f"**Jogging Score:** {route['predicted_score']:.1f}")
-
-    
-  
+    # Optimization Insights
     st.markdown("### 📈 Environmental Insights")
     col1, col2 = st.columns(2)
-    
     with col1:
         st.markdown("**🌡️ Current Conditions**")
         st.write(f"• Primary pollutant: {data['aqi_data']['dominant_pollutant']}")
         st.write(f"• Air quality category: {data['aqi_data']['category']}")
-        st.write(f"• Elevation impact: {'Minimal' if data['elevation'] < 100 else 'Moderate' if data['elevation'] < 500 else 'Significant'}")
+        elevation_impact = (
+            "Minimal" if data['elevation'] < 100 
+            else "Moderate" if data['elevation'] < 500 
+            else "Significant"
+        )
+        st.write(f"• Elevation impact: {elevation_impact}")
     
     with col2:
         st.markdown("**🎯 Optimization Results**")
-        #if not data['routes']:
-        #st.warning("⚠️ No jogging loops found for the selected distance. Try increasing the distance or tolerance.")
-        #return
-
+        # Safe computation of best/worst route
         if data['routes']:
-    best_route = min(data['routes'], key=lambda x: x['avg_aqi'])
-    worst_route = max(data['routes'], key=lambda x: x['avg_aqi'])
+            best_route = min(data['routes'], key=lambda x: x['avg_aqi'])
+            worst_route = max(data['routes'], key=lambda x: x['avg_aqi'])
+            improvement = (
+                (worst_route['avg_aqi'] - best_route['avg_aqi']) /
+                worst_route['avg_aqi'] * 100
+                if worst_route['avg_aqi'] > 0 else 0
+            )
+            st.write(f"• Best route AQI: {best_route['avg_aqi']:.0f}")
+            st.write(f"• Pollution avoidance: {improvement:.0f}%")
+        else:
+            st.write("• Pollution avoidance: N/A")
 
-    improvement = (
-        (worst_route['avg_aqi'] - best_route['avg_aqi']) /
-        worst_route['avg_aqi'] * 100
-        if worst_route['avg_aqi'] > 0 else 0
-    )
-
-    st.write(f"• Best route AQI: {best_route['avg_aqi']:.0f}")
-    st.write(f"• Pollution avoidance: {improvement:.0f}%")
-else:
-    st.write("• Pollution avoidance: N/A")
 
 def main():
 
