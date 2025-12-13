@@ -155,10 +155,15 @@ def get_air_quality_data(lat, lng):
 
 
 @st.cache_data(ttl=3600)
-def score_jogging_paths(place_name="Riga, Latvia"):
-    """Download walkable network, filter jogging paths, and score them"""
+def score_jogging_paths_by_coords(lat, lng, dist_m=3000):
+    """Build walk graph around coordinates & score jogging paths"""
 
-    G = ox.graph_from_place(place_name, network_type='walk')
+    G = ox.graph_from_point(
+        (lat, lng),
+        dist=dist_m,
+        network_type='walk'
+    )
+
     nodes, edges = ox.graph_to_gdfs(G)
     edges = edges.reset_index()
 
@@ -173,7 +178,6 @@ def score_jogging_paths(place_name="Riga, Latvia"):
     jogging_edges['surface'] = jogging_edges['surface'].fillna('unknown')
     jogging_edges['surface_encoded'] = pd.factorize(jogging_edges['surface'])[0]
 
-    # Synthetic training target
     jogging_edges['score'] = (
         0.6 * jogging_edges['length'] +
         15 * (jogging_edges['surface'] == 'paved').astype(int)
@@ -182,30 +186,33 @@ def score_jogging_paths(place_name="Riga, Latvia"):
     X = jogging_edges[['length', 'surface_encoded']]
     y = jogging_edges['score']
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
     model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
+    model.fit(X, y)
 
     jogging_edges['predicted_score'] = model.predict(X)
 
     return G, jogging_edges
 
 
-def generate_ml_optimized_routes(place_name, center_coords, heatmap_data, max_routes=3):
-    G, jogging_edges = score_jogging_paths(place_name)
 
-    # Convert OSMnx graph to undirected NetworkX graph (osmnx-safe)
+def generate_ml_optimized_routes(center_coords, heatmap_data, max_routes=3):
+    G, jogging_edges = score_jogging_paths_by_coords(
+        center_coords['lat'],
+        center_coords['lng']
+    )
+
     G_nx = nx.Graph(G)
 
     center_node = ox.distance.nearest_nodes(
-        G_nx, center_coords['lng'], center_coords['lat']
+        G_nx,
+        center_coords['lng'],
+        center_coords['lat']
     )
 
     routes = []
-    sampled_edges = jogging_edges.sample(n=min(20, len(jogging_edges)), random_state=42)
+    sampled_edges = jogging_edges.sample(
+        n=min(25, len(jogging_edges)), random_state=42
+    )
 
     for _, edge in sampled_edges.iterrows():
         try:
@@ -238,6 +245,8 @@ def generate_ml_optimized_routes(place_name, center_coords, heatmap_data, max_ro
     return sorted(
         routes,
         key=lambda x: (-x['predicted_score'], x['avg_aqi'])
+    )
+
     )
 
 
