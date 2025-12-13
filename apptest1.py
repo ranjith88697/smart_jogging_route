@@ -631,7 +631,7 @@ def process_route_generation(location, distance, fitness_level, health_condition
             return False
         st.write("DEBUG coords:", coords, type(coords))
         # Get environmental data
-        with st.status("Fetching environmental data...") as status:
+        with st.spinner("Fetching environmental data...") as status:
             status.update(label="Getting air quality data...", state="running")
             aqi_data = get_air_quality_data(coords['lat'], coords['lng'])
             
