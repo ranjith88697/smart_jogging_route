@@ -247,10 +247,6 @@ def generate_ml_optimized_routes(center_coords, heatmap_data, max_routes=3):
         key=lambda x: (-x['predicted_score'], x['avg_aqi'])
     )
 
-    )
-
-
-
 @st.cache_data(ttl=600) 
 def generate_pollution_heatmap_data(center_lat, center_lng, radius_km=5):
     """Generate grid points for pollution heatmap"""
